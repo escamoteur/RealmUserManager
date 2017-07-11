@@ -1,7 +1,7 @@
 using Nancy;
 using Nancy.TinyIoc;
 
-namespace Empty
+namespace RealmUserManager
 {
     public class Bootstrapper : DefaultNancyBootstrapper
     {

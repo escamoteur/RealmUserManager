@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Nancy.Owin;
 
-namespace Empty
+namespace RealmUserManager
 {
     public class Startup
     {

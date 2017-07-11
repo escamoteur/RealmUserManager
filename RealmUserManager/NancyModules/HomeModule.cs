@@ -1,6 +1,6 @@
 ﻿using Nancy;
 
-namespace Empty
+namespace RealmUserManager
 {
     public class HomeModule : NancyModule
     {

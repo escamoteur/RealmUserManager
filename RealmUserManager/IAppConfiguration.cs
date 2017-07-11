@@ -1,4 +1,4 @@
-namespace Empty
+namespace RealmUserManager
 {
     public interface IAppConfiguration
     {

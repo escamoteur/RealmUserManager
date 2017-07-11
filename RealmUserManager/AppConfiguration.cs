@@ -1,4 +1,4 @@
-namespace Empty
+namespace RealmUserManager
 {
 
     //This is just a sample App config
