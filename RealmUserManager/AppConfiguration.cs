@@ -6,6 +6,8 @@ namespace RealmUserManager
     {
         public Logging Logging { get; set; }
         public Smtp Smtp { get; set; }
+        public ApplicationSettings AppSettings { get; set; }
+        public byte[] SecretKey { get; set; }
     }
     
     public class LogLevel
@@ -21,11 +23,23 @@ namespace RealmUserManager
         public LogLevel LogLevel { get; set; }
     }
 
+    // SMTP data settings for sending confirmation or passwort reset emails
     public class Smtp
     {
         public string Server { get; set; }
         public string User { get; set; }
         public string Pass { get; set; }
-        public string Port { get; set; }
+        public int Port { get; set; }
     }
+
+    public class ApplicationSettings
+    {
+        public bool IgnoreUserActiveCheck { get; set; }  // Allows for testing to ignore the activation check
+        public bool IgnoreSubscriptionValidCheck { get; set; } // Allows for testing to ignore subscription time
+
+        public string LatestAppVersion { get; set; } // will be passed to the client when loggin in
+        public string ForceAppUpdateVersion { get; set; } // will be passed to the client when loggin in so client can be notified that App should be updated
+    }
+
 }
+
