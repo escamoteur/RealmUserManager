@@ -3,22 +3,25 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Jose;
-using Realms;
-using Realms.Exceptions;
+
 using RealmUserManager.Helpers;
 using RealmUserManagerDefinitions;
 using Serilog;
+using SQLite;
 
 namespace RealmUserManager.Model
 {
     public class AuthenticationManager
     {
-        public RealmConfiguration _realmConfiguration { get; }
+        public SQLiteConnection TheDatabase { get; }
         private readonly IAppConfiguration _config;
 
-        public AuthenticationManager(IAppConfiguration config, RealmConfiguration realmConfiguration)
+        public AuthenticationManager(IAppConfiguration config, SQLiteConnection theDatabase)
         {
-            _realmConfiguration = realmConfiguration;
+            TheDatabase = theDatabase;
+
+            TheDatabase.CreateTable<UserData>();
+
             _config = config;
         }
 
@@ -41,34 +44,31 @@ namespace RealmUserManager.Model
 
         public bool AddUser(UserData user)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
             try
             {
-                theRealm.Write(() =>
-                {
-                    user.Id = Guid.NewGuid().ToString();
-                    user.active = false;
+                user.Id = Guid.NewGuid().ToString();
+                user.active = false;
 
-                    var hashAndSalt = HashHelper.GenerateSaltedSHA1(user.Password);
+                var hashAndSalt = HashHelper.GenerateSaltedSHA1(user.Password);
 
-                    user.HashedAndSaltedPassword = hashAndSalt.hashedAndSalted;
-                    user.SaltString = hashAndSalt.salt;
+                user.HashedAndSaltedPassword = hashAndSalt.hashedAndSalted;
+                user.SaltString = hashAndSalt.salt;
 
-                    theRealm.Add(user);
-                });
+                TheDatabase.Insert(user);
+
                 Log.Information("New user Added: {@user}", user);
                 return true;
 
             }
-            catch (RealmDuplicatePrimaryKeyValueException e)
+            catch (SQLiteException ex)
             {
-                Log.Information("Try to add user a second time: {@user}", user);
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debugger.Break();
-                return false;
+                if (ex.Message.Contains("Constraint"))
+                {
+                    Log.Information("Try to add user a second time: {@user}", user);
+                    return false;
+
+                }
+                throw;
             }
         }
 
@@ -76,13 +76,12 @@ namespace RealmUserManager.Model
 
         public AuthenticationStatus LoginUser(string userName, string pwd)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
 
-            var userInDB = theRealm.All<UserData>()
-                        .FirstOrDefault(u => (  u.UserName == userName));
-            
+            var userInDB = TheDatabase.Table<UserData>()
+                        .FirstOrDefault(u => (u.UserName == userName));
 
-            var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID};
+
+            var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID };
 
             if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, pwd))
             {
@@ -95,10 +94,9 @@ namespace RealmUserManager.Model
             {
                 authenticationStatus.RefreshToken = Guid.NewGuid().ToString();
 
-                theRealm.Write(() =>
-                {
-                    userInDB.RefreshToken = authenticationStatus.RefreshToken;
-                });
+                userInDB.RefreshToken = authenticationStatus.RefreshToken;
+
+                TheDatabase.Update(userInDB);
             }
             else
             {
@@ -106,58 +104,9 @@ namespace RealmUserManager.Model
             }
 
 
-            // We return an refresh token even if the user is not activated or the subscription has expired.
-            // In this cases we will not return a new access token (JWT token)
+            //We return an refresh token even if the user is not activated or the subscription has expired.
+            //In this cases we will not return a new access token(JWT token)
 
-
-            //First check if active
-            if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
-            {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
-                return authenticationStatus;
-            }
-            //if active user should have a valid subscription
-            if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
-            {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
-                authenticationStatus.EndOfSubscription =userInDB.EndOfSubscription;
-                return authenticationStatus;
-            }
-
-            //everything fine
-            authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_VALID;
-
-            var accessToken = new JwtToken()
-            {
-                token = Guid.NewGuid(),
-                sub = userInDB.Id, 
-                exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
-            };
-
-            authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, _config.SecretKey, JwsAlgorithm.HS256);
-
-            authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
-
-          
-            return authenticationStatus;
-        }
-
-
-        public AuthenticationStatus RefreshLogin(string refreshToken)
-        {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
-
-            var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => u.RefreshToken == refreshToken);
-
-            var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID };
-
-
-            if (userInDB == null)
-            {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_IN_VALID;
-                return authenticationStatus;
-            }
 
             //First check if active
             if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
@@ -176,55 +125,108 @@ namespace RealmUserManager.Model
             //everything fine
             authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_VALID;
 
-            var payLoad = new JwtToken()
+            var accessToken = new JwtToken()
             {
                 token = Guid.NewGuid(),
                 sub = userInDB.Id,
                 exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
             };
 
-            authenticationStatus.JwtToken = Jose.JWT.Encode(payLoad, _config.SecretKey, JwsAlgorithm.HS256);
+            authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, _config.SecretKey, JwsAlgorithm.HS256);
 
             authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
-            authenticationStatus.RefreshToken = refreshToken; // don't change the refresh token
+
 
             return authenticationStatus;
+       
+        }
+
+
+        public AuthenticationStatus RefreshLogin(string refreshToken)
+        {
+            //var theRealm = Realm.GetInstance(TheDatabase);
+
+            //var userInDB = theRealm.All<UserData>()
+            //    .FirstOrDefault(u => u.RefreshToken == refreshToken);
+
+            //var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID };
+
+
+            //if (userInDB == null)
+            //{
+            //    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_IN_VALID;
+            //    return authenticationStatus;
+            //}
+
+            ////First check if active
+            //if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
+            //{
+            //    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
+            //    return authenticationStatus;
+            //}
+            ////if active user should have a valid subscription
+            //if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
+            //{
+            //    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
+            //    authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
+            //    return authenticationStatus;
+            //}
+
+            ////everything fine
+            //authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_VALID;
+
+            //var payLoad = new JwtToken()
+            //{
+            //    token = Guid.NewGuid(),
+            //    sub = userInDB.Id,
+            //    exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
+            //};
+
+            //authenticationStatus.JwtToken = Jose.JWT.Encode(payLoad, _config.SecretKey, JwsAlgorithm.HS256);
+
+            //authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
+            //authenticationStatus.RefreshToken = refreshToken; // don't change the refresh token
+
+            //return authenticationStatus;
+            return null;
         }
 
 
 
         public AuthenticationStatus UpdateUserSubscription(string refreshToken, DateTimeOffset newExpiryDate)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
+            //var theRealm = Realm.GetInstance(TheDatabase);
 
-            var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => u.RefreshToken == refreshToken);
+            //var userInDB = theRealm.All<UserData>()
+            //    .FirstOrDefault(u => u.RefreshToken == refreshToken);
 
-            theRealm.Write(() =>
-            {
-                userInDB.EndOfSubscription = newExpiryDate;
-            });
+            //theRealm.Write(() =>
+            //{
+            //    userInDB.EndOfSubscription = newExpiryDate;
+            //});
 
-            return new AuthenticationStatus()
-            {
-                Status = AuthenticationStatus.UserStatus.USER_VALID,
-                EndOfSubscription = newExpiryDate
-            };
+            //return new AuthenticationStatus()
+            //{
+            //    Status = AuthenticationStatus.UserStatus.USER_VALID,
+            //    EndOfSubscription = newExpiryDate
+            //};
+
+            return null;
         }
 
         public bool ActivateUser(UserData userData)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
+            //var theRealm = Realm.GetInstance(TheDatabase);
 
-            var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => (u.UserName == userData.UserName));
+            //var userInDB = theRealm.All<UserData>()
+            //    .FirstOrDefault(u => (u.UserName == userData.UserName));
 
-            if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, userData.Password))
-            {
-                return false;
-            }
+            //if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, userData.Password))
+            //{
+            //    return false;
+            //}
 
-            theRealm.Write(() => userInDB.active = true);
+            //theRealm.Write(() => userInDB.active = true);
 
             return true;
         }
@@ -232,21 +234,21 @@ namespace RealmUserManager.Model
 
         public bool ActivateUser(string activationToken)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
+            //var theRealm = Realm.GetInstance(TheDatabase);
 
-            var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => u.LastActivationToken == activationToken);
+            //var userInDB = theRealm.All<UserData>()
+            //    .FirstOrDefault(u => u.LastActivationToken == activationToken);
 
-            if (userInDB == null)
-            {
-                return false;
-            }
+            //if (userInDB == null)
+            //{
+            //    return false;
+            //}
 
-            theRealm.Write(() =>
-            {
-                userInDB.active = true;
-                userInDB.LastActivationToken = null;
-            });
+            //theRealm.Write(() =>
+            //{
+            //    userInDB.active = true;
+            //    userInDB.LastActivationToken = null;
+            //});
 
             return true;
         }
@@ -265,22 +267,22 @@ namespace RealmUserManager.Model
 
         public async Task<bool> SendActivationEmail(string userName)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
+            //var theRealm = Realm.GetInstance(TheDatabase);
 
-            var activationManager = new EmailManager("EmailSettings.json", _config);
+            //var activationManager = new EmailManager("EmailSettings.json", _config);
 
-            var userToActivate = theRealm.All<UserData>()
-                            .FirstOrDefault(user => user.UserName == userName);
+            //var userToActivate = theRealm.All<UserData>()
+            //                .FirstOrDefault(user => user.UserName == userName);
 
 
-            if (userToActivate != null)
-            {
-                // Generate activation token
-                theRealm.Write(() => userToActivate.LastActivationToken = Guid.NewGuid().ToString());
+            //if (userToActivate != null)
+            //{
+            //    // Generate activation token
+            //    theRealm.Write(() => userToActivate.LastActivationToken = Guid.NewGuid().ToString());
 
-                await activationManager.SendActivationEmail(userToActivate);
-                return true;
-            }
+            //    await activationManager.SendActivationEmail(userToActivate);
+            //    return true;
+            //}
 
             return false;
 
@@ -290,19 +292,19 @@ namespace RealmUserManager.Model
 
         public async Task<bool> SendResetPasswordEmail(string userName)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
+            //var theRealm = Realm.GetInstance(TheDatabase);
 
-            var activationManager = new EmailManager("EmailSettings.json",_config);
+            //var activationManager = new EmailManager("EmailSettings.json",_config);
 
-            var userWithResetRequest = theRealm.All<UserData>()
-                .FirstOrDefault(user => user.UserName == userName);
+            //var userWithResetRequest = theRealm.All<UserData>()
+            //    .FirstOrDefault(user => user.UserName == userName);
 
 
-            if (userWithResetRequest != null)
-            {
-                await activationManager.SendActivationEmail(userWithResetRequest.Email, userWithResetRequest.Id, userWithResetRequest.Language);
-                return true;
-            }
+            //if (userWithResetRequest != null)
+            //{
+            //    await activationManager.SendActivationEmail(userWithResetRequest.Email, userWithResetRequest.Id, userWithResetRequest.Language);
+            //    return true;
+            //}
 
             return false;
         }
@@ -311,20 +313,13 @@ namespace RealmUserManager.Model
         {
             try
             {
-                var theRealm = Realm.GetInstance(_realmConfiguration);
 
-                var testUser = theRealm.All<UserData>()
-                    .FirstOrDefault(user => user.UserName == "TestUser");
-
-                if (testUser != null)
-                {
-                    theRealm.Write(() => theRealm.Remove(testUser));
-                }
+                TheDatabase.Table<UserData>().Delete(user => user.UserName == "TestUser" );
             }
             catch (Exception e)
             {
                 Debugger.Break();
-                
+
             }
         }
     }

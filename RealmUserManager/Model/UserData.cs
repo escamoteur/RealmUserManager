@@ -2,14 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Realms;
+
 using RealmUserManagerDefinitions;
+using SQLite;
 
 
 namespace RealmUserManager.Model
 {
 
-    public class UserData : RealmObject, IUserData
+    public class UserData : IUserData
     {
         // Unique ID that is part of the returned access tokens
 		public string Id { get; set; }
@@ -17,7 +18,8 @@ namespace RealmUserManager.Model
         [PrimaryKey]
 		public string Email { get; set; }
 		public string UserName { get; set; }
-        [Ignored]
+
+        [Ignore]
         public string Password { get; set; } // this field is only used when a user logs in with username/password but is never saved 
 
 		public string HashedAndSaltedPassword { get; set; }

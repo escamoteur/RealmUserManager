@@ -5,10 +5,11 @@ using System.Security.Principal;
 using Nancy;
 using Nancy.Authentication.Stateless;
 using Nancy.TinyIoc;
-using Realms;
+
 using RealmUserManager.Model;
 using RealmUserManagerDefinitions;
 using Serilog;
+using SQLite;
 
 namespace RealmUserManager
 {
@@ -25,7 +26,8 @@ namespace RealmUserManager
         public Bootstrapper(IAppConfiguration appConfig)
         {
             this.appConfig = appConfig;
-            _authenticationManager = new AuthenticationManager(appConfig, new RealmConfiguration());
+            _authenticationManager = new AuthenticationManager(appConfig, new SQLiteConnection("UserData.db"));
+               
         }
 
         protected override void ConfigureApplicationContainer(TinyIoCContainer container)
