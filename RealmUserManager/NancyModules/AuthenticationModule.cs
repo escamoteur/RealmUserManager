@@ -6,7 +6,7 @@ using Nancy;
 using Nancy.ModelBinding;
 using Nancy.Extensions;
 using Nancy.Security;
-using Realms;
+
 using RealmUserManager.Model;
 using RealmUserManagerDefinitions;
 using Serilog;
@@ -24,8 +24,7 @@ namespace RealmUserManager.NancyModules
             // Async method lacks 'await' operators and will run synchronously
             Post("/auth/login", (parameters) =>
             {
-                var credentials = this.BindAndValidate<UserData>(new BindingConfig() {BodyOnly = true});
-                if (!ModelValidationResult.IsValid)
+                if (!Request.Query.username.HasValue || (!Request.Query.password.HasValue))
                 {
                     Log.Logger.Warning("Login with invalid credentials {requestbody}", this.Request.Body.AsString());
 
@@ -36,7 +35,7 @@ namespace RealmUserManager.NancyModules
                     };
                 }
 
-                var authentication = authenticationManager.LoginUser(credentials.UserName, credentials.Password);
+                AuthenticationStatus authentication = authenticationManager.LoginUser(Request.Query.username, Request.Query.password);
 
                 if (authentication.Status == AuthenticationStatus.UserStatus.USER_VALID)
                 {
@@ -54,7 +53,7 @@ namespace RealmUserManager.NancyModules
                     return Response.AsJson(authentication, HttpStatusCode.PaymentRequired);
                 }
 
-                Log.Logger.Information("Login failed {@user}", credentials);
+                Log.Logger.Information("Login failed {@user}", Request.Query.username);
 
                 return new Response()
                 {
@@ -110,7 +109,7 @@ namespace RealmUserManager.NancyModules
 
             Post("/auth/user/new", (parameters) =>
             {
-                var newUser = this.BindAndValidate<UserData>(new BindingConfig() {BodyOnly = true});
+                var newUser = this.BindAndValidate<UserData>(new BindingConfig() { BodyOnly = true });
 
                 if (!ModelValidationResult.IsValid)
                 {
@@ -141,7 +140,7 @@ namespace RealmUserManager.NancyModules
             // activate user by providing login credentials in the request body
             Patch("/auth/user/activate", (parameters) =>
             {
-                var credentials = this.BindAndValidate<UserData>(new BindingConfig() {BodyOnly = true});
+                var credentials = this.BindAndValidate<UserData>(new BindingConfig() { BodyOnly = true });
                 if (!ModelValidationResult.IsValid)
                 {
                     return new Response()
@@ -184,7 +183,7 @@ namespace RealmUserManager.NancyModules
                     Log.Logger.Information("User Activated {@user}", parameters.id);
                     Log.Logger.Verbose("lang:{l}", Request.Query.lang);
 
-                    switch ((string) Request.Query.lang)
+                    switch ((string)Request.Query.lang)
                     {
                         case "de":
                             return View["activation_confirmation_de.html"];
@@ -195,7 +194,7 @@ namespace RealmUserManager.NancyModules
 
                 Log.Logger.Warning("Activate user with unknown token: {token}", parameters.token);
 
-                switch ((string) Request.Query.lang)
+                switch ((string)Request.Query.lang)
                 {
                     case "de":
                         return View["activation_failed_de.html"];
@@ -205,13 +204,13 @@ namespace RealmUserManager.NancyModules
             });
 
 
-         //
+            //
             // Parameters:
             // token : a valid refresh token
             // newEndDate: UTC time as string
-            Patch("auth/subscription/end",  parameters =>
+            Patch("auth/subscription/end", parameters =>
             {
-                if (!Request.Query.token.HasValue )
+                if (!Request.Query.token.HasValue)
                 {
                     return new Response()
                     {
@@ -262,7 +261,7 @@ namespace RealmUserManager.NancyModules
 
             Post("/auth/sendActivationEmail", async (parameters, cp) =>
             {
-                var credentials = this.BindAndValidate<UserData>(new BindingConfig() {BodyOnly = true});
+                var credentials = this.BindAndValidate<UserData>(new BindingConfig() { BodyOnly = true });
                 if (!ModelValidationResult.IsValid)
                 {
                     return new Response()
@@ -299,7 +298,7 @@ namespace RealmUserManager.NancyModules
                     Log.Logger.Information("password change for {@user}", user);
 
 
-                    switch ((string) Request.Query.lang)
+                    switch ((string)Request.Query.lang)
                     {
                         case "de":
                             return View["change_password_confirmation_de.html"];
@@ -310,7 +309,7 @@ namespace RealmUserManager.NancyModules
 
                 Log.Logger.Warning("password change attempt user with invalid token: {token}", parameters.token);
 
-                switch ((string) Request.Query.lang)
+                switch ((string)Request.Query.lang)
                 {
                     case "de":
                         return View["change_password_failed_de.html"];
@@ -321,7 +320,7 @@ namespace RealmUserManager.NancyModules
 
             Patch("/auth/user/language", parameters =>
             {
-                var credentials = this.BindAndValidate<UserData>(new BindingConfig() {BodyOnly = true});
+                var credentials = this.BindAndValidate<UserData>(new BindingConfig() { BodyOnly = true });
                 if (!ModelValidationResult.IsValid)
                 {
                     return new Response()
