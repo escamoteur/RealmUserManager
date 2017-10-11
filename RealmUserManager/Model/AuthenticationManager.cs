@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Jose;
 using Realms;
@@ -130,7 +131,7 @@ namespace RealmUserManager.Model
                     sub = userInDB.Id, 
                     exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
                 };
-                authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, _config.SecretKey, JwsAlgorithm.HS256);
+                authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, Encoding.ASCII.GetBytes(_config.SecretKey), JwsAlgorithm.HS256);
                 authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
 
                 return authenticationStatus;
