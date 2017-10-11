@@ -7,7 +7,7 @@ namespace RealmUserManager
         public Logging Logging { get; set; }
         public Smtp Smtp { get; set; }
         public ApplicationSettings AppSettings { get; set; }
-        public byte[] SecretKey { get; set; }
+        public string SecretKey { get; set; }
     }
     
     public class LogLevel
