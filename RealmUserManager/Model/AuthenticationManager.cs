@@ -77,70 +77,64 @@ namespace RealmUserManager.Model
 
         public AuthenticationStatus LoginUser(string userName, string pwd)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
-
-            var userInDB = theRealm.All<UserData>()
-                        .FirstOrDefault(u => (  u.UserName == userName));
-            
-
-            var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID};
-
-            if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, pwd))
+            using (var theRealm = Realm.GetInstance(_realmConfiguration))
             {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_IN_VALID;
-                return authenticationStatus;
-            }
+                var userInDB = theRealm.All<UserData>()
+                    .FirstOrDefault(u => (u.UserName == userName));
 
-            //Only issue a new refresh token if none is available
-            if (string.IsNullOrWhiteSpace(userInDB.RefreshToken))
-            {
-                authenticationStatus.RefreshToken = Guid.NewGuid().ToString();
+                var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID};
 
-                theRealm.Write(() =>
+                if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, pwd))
                 {
-                    userInDB.RefreshToken = authenticationStatus.RefreshToken;
-                });
-            }
-            else
-            {
-                authenticationStatus.RefreshToken = userInDB.RefreshToken;
-            }
+                    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_IN_VALID;
+                    return authenticationStatus;
+                }
+                
+                //Only issue a new refresh token if none is available
+                if (string.IsNullOrWhiteSpace(userInDB.RefreshToken))
+                {
+                    authenticationStatus.RefreshToken = Guid.NewGuid().ToString();
 
+                    theRealm.Write(() =>
+                    {
+                        userInDB.RefreshToken = authenticationStatus.RefreshToken;
+                    });
+                }
+                else
+                {
+                    authenticationStatus.RefreshToken = userInDB.RefreshToken;
+                }
+                
+                // We return an refresh token even if the user is not activated or the subscription has expired.
+                // In this cases we will not return a new access token (JWT token)
+                //First check if active
+                if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
+                {
+                    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
+                    return authenticationStatus;
+                }
+                
+                //if active user should have a valid subscription
+                if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
+                {
+                    authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
+                    authenticationStatus.EndOfSubscription =userInDB.EndOfSubscription;
+                    return authenticationStatus;
+                }
+                
+                //everything fine
+                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_VALID;
+                var accessToken = new JwtToken()
+                {
+                    token = Guid.NewGuid(),
+                    sub = userInDB.Id, 
+                    exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
+                };
+                authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, _config.SecretKey, JwsAlgorithm.HS256);
+                authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
 
-            // We return an refresh token even if the user is not activated or the subscription has expired.
-            // In this cases we will not return a new access token (JWT token)
-
-
-            //First check if active
-            if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
-            {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
                 return authenticationStatus;
             }
-            //if active user should have a valid subscription
-            if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
-            {
-                authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
-                authenticationStatus.EndOfSubscription =userInDB.EndOfSubscription;
-                return authenticationStatus;
-            }
-
-            //everything fine
-            authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_VALID;
-
-            var accessToken = new JwtToken()
-            {
-                token = Guid.NewGuid(),
-                sub = userInDB.Id, 
-                exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
-            };
-
-            authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, _config.SecretKey, JwsAlgorithm.HS256);
-
-            authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
-
-          
-            return authenticationStatus;
         }
 
 
