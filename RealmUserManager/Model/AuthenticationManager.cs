@@ -12,12 +12,12 @@ namespace RealmUserManager.Model
 {
     public class AuthenticationManager
     {
-        public Realm TheRealm { get; }
+        public RealmConfiguration _realmConfiguration { get; }
         private readonly IAppConfiguration _config;
 
-        public AuthenticationManager(IAppConfiguration config, Realm theRealm)
+        public AuthenticationManager(IAppConfiguration config, RealmConfiguration realmConfiguration)
         {
-            TheRealm = theRealm;
+            _realmConfiguration = realmConfiguration;
             _config = config;
         }
 
@@ -40,9 +40,10 @@ namespace RealmUserManager.Model
 
         public bool AddUser(UserData user)
         {
+            var theRealm = Realm.GetInstance(_realmConfiguration);
             try
             {
-                TheRealm.Write(() =>
+                theRealm.Write(() =>
                 {
                     user.Id = Guid.NewGuid().ToString();
                     user.active = false;
@@ -52,7 +53,7 @@ namespace RealmUserManager.Model
                     user.HashedAndSaltedPassword = hashAndSalt.hashedAndSalted;
                     user.SaltString = hashAndSalt.salt;
 
-                    TheRealm.Add(user);
+                    theRealm.Add(user);
                 });
                 Log.Information("New user Added: {@user}", user);
                 return true;
@@ -69,7 +70,9 @@ namespace RealmUserManager.Model
 
         public AuthenticationStatus LoginUser(string userName, string pwd)
         {
-            var userInDB = TheRealm.All<UserData>()
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
+            var userInDB = theRealm.All<UserData>()
                         .FirstOrDefault(u => (  u.UserName == userName));
             
 
@@ -86,7 +89,7 @@ namespace RealmUserManager.Model
             {
                 authenticationStatus.RefreshToken = Guid.NewGuid().ToString();
 
-                TheRealm.Write(() =>
+                theRealm.Write(() =>
                 {
                     userInDB.RefreshToken = authenticationStatus.RefreshToken;
                 });
@@ -136,7 +139,9 @@ namespace RealmUserManager.Model
 
         public AuthenticationStatus RefreshLogin(string refreshToken)
         {
-            var userInDB = TheRealm.All<UserData>()
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
+            var userInDB = theRealm.All<UserData>()
                 .FirstOrDefault(u => u.RefreshToken == refreshToken);
 
             var authenticationStatus = new AuthenticationStatus() { JwtToken = null, Status = AuthenticationStatus.UserStatus.USER_IN_VALID };
@@ -184,10 +189,12 @@ namespace RealmUserManager.Model
 
         public AuthenticationStatus UpdateUserSubscription(string refreshToken, DateTimeOffset newExpiryDate)
         {
-            var userInDB = TheRealm.All<UserData>()
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
+            var userInDB = theRealm.All<UserData>()
                 .FirstOrDefault(u => u.RefreshToken == refreshToken);
 
-            TheRealm.Write(() =>
+            theRealm.Write(() =>
             {
                 userInDB.EndOfSubscription = newExpiryDate;
             });
@@ -201,8 +208,9 @@ namespace RealmUserManager.Model
 
         public bool ActivateUser(UserData userData)
         {
+            var theRealm = Realm.GetInstance(_realmConfiguration);
 
-            var userInDB = TheRealm.All<UserData>()
+            var userInDB = theRealm.All<UserData>()
                 .FirstOrDefault(u => (u.UserName == userData.UserName));
 
             if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, userData.Password))
@@ -210,7 +218,7 @@ namespace RealmUserManager.Model
                 return false;
             }
 
-            TheRealm.Write(() => userInDB.active = true);
+            theRealm.Write(() => userInDB.active = true);
 
             return true;
         }
@@ -218,7 +226,9 @@ namespace RealmUserManager.Model
 
         public bool ActivateUser(string activationToken)
         {
-            var userInDB = TheRealm.All<UserData>()
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
+            var userInDB = theRealm.All<UserData>()
                 .FirstOrDefault(u => u.LastActivationToken == activationToken);
 
             if (userInDB == null)
@@ -226,7 +236,7 @@ namespace RealmUserManager.Model
                 return false;
             }
 
-            TheRealm.Write(() =>
+            theRealm.Write(() =>
             {
                 userInDB.active = true;
                 userInDB.LastActivationToken = null;
@@ -249,16 +259,18 @@ namespace RealmUserManager.Model
 
         public async Task<bool> SendActivationEmail(string userName)
         {
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
             var activationManager = new EmailManager("EmailSettings.json", _config);
 
-            var userToActivate =  TheRealm.All<UserData>()
+            var userToActivate = theRealm.All<UserData>()
                             .FirstOrDefault(user => user.UserName == userName);
 
 
             if (userToActivate != null)
             {
                 // Generate activation token
-                TheRealm.Write(() => userToActivate.LastActivationToken = Guid.NewGuid().ToString());
+                theRealm.Write(() => userToActivate.LastActivationToken = Guid.NewGuid().ToString());
 
                 await activationManager.SendActivationEmail(userToActivate);
                 return true;
@@ -272,9 +284,11 @@ namespace RealmUserManager.Model
 
         public async Task<bool> SendResetPasswordEmail(string userName)
         {
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
             var activationManager = new EmailManager("EmailSettings.json",_config);
 
-            var userWithResetRequest = TheRealm.All<UserData>()
+            var userWithResetRequest = theRealm.All<UserData>()
                 .FirstOrDefault(user => user.UserName == userName);
 
 
@@ -289,12 +303,14 @@ namespace RealmUserManager.Model
 
         public void DeleteTestUser()
         {
-            var testUser = TheRealm.All<UserData>()
+            var theRealm = Realm.GetInstance(_realmConfiguration);
+
+            var testUser = theRealm.All<UserData>()
                 .FirstOrDefault(user => user.UserName == "TestUser");
 
             if (testUser != null)
             {
-                TheRealm.Remove(testUser);
+                theRealm.Remove(testUser);
             }
         }
     }

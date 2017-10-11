@@ -25,7 +25,7 @@ namespace RealmUserManager
         public Bootstrapper(IAppConfiguration appConfig)
         {
             this.appConfig = appConfig;
-            _authenticationManager = new AuthenticationManager(appConfig, Realm.GetInstance());
+            _authenticationManager = new AuthenticationManager(appConfig, new RealmConfiguration());
         }
 
         protected override void ConfigureApplicationContainer(TinyIoCContainer container)
