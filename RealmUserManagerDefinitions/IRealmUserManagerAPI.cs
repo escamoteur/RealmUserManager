@@ -5,8 +5,8 @@ namespace RealmUserManagerDefinitions
 {
     public interface IRealmUserManagerAPI
     {
-        [Post("/auth/login/")]
-        Task<AuthenticationStatus> Login(IUserData credentials);
+        [Post("/auth/login/?username={username}&password={password}")]
+        Task<AuthenticationStatus> Login(string username, string password);
 
         [Post("/auth/user/new")]
         Task NewUser(IUserData credentials);
