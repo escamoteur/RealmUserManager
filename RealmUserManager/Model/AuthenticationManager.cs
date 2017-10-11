@@ -310,7 +310,7 @@ namespace RealmUserManager.Model
 
             if (testUser != null)
             {
-                theRealm.Remove(testUser);
+                theRealm.Write(() => theRealm.Remove(testUser));
             }
         }
     }

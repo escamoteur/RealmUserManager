@@ -8,7 +8,7 @@ namespace RealmUserManagerDefinitions
         [Post("/auth/login/")]
         Task<AuthenticationStatus> Login(IUserData credentials);
 
-        [Post("/auth/new")]
+        [Post("/auth/user/new")]
         Task NewUser(IUserData credentials);
 
         [Patch("/auth/subscription/end")]
