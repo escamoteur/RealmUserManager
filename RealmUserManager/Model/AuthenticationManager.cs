@@ -68,6 +68,7 @@ namespace RealmUserManager.Model
             catch (Exception ex)
             {
                 Debugger.Break();
+                return false;
             }
         }
 
