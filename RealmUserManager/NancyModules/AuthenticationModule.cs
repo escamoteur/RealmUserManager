@@ -127,7 +127,7 @@ namespace RealmUserManager.NancyModules
                 {
                     Log.Logger.Information("New user Added: {@user}", newUser);
 
-                    return Task.FromResult(HttpStatusCode.OK);
+                    return HttpStatusCode.OK;
                 }
                 else
                 {
