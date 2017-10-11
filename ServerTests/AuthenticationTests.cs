@@ -14,6 +14,7 @@ namespace ServerTests
     {
         // Replace with your own serveradress
         private static string ServerBaseAdress = "http://localhost:5000/";
+       // private static string ServerBaseAdress = "http://192.168.178.51:5000/";
 
 
 
