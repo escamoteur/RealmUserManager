@@ -172,7 +172,7 @@ namespace ServerTests
             });
 
 
-            await restAPI.ActivateUser()
+            await restAPI.ActivateUser("TestUser", "1234");
 
             //act
             try
@@ -184,7 +184,7 @@ namespace ServerTests
             {
                var result =   JsonConvert.DeserializeObject<AuthenticationStatus>(e.Content);
 
-                Assert.AreEqual(AuthenticationStatus.UserStatus.USER_INACTIVE, result.Status);
+                Assert.AreEqual(AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED, result.Status);
             }
 
 

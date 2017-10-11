@@ -14,7 +14,7 @@ namespace RealmUserManagerDefinitions
         [Patch("/auth/subscription/end")]
         Task<AuthenticationStatus> UpdateUserSubscriptionEnd(IUserData credentials);
 
-        [Patch("/auth/subscription/activate/?username={username}&password={password}")]
+        [Patch("/auth/user/activate/?username={username}&password={password}")]
         Task<AuthenticationStatus> ActivateUser(string username, string password);
 
         [Post("/auth/subscription/activate/sendemail")]

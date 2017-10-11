@@ -210,19 +210,20 @@ namespace RealmUserManager.Model
 
         public bool ActivateUser(string userName, string password)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
-
-            var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => (u.UserName == userName));
-
-            if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, password))
+            using (var theRealm = Realm.GetInstance(_realmConfiguration))
             {
-                return false;
+                var userInDB = theRealm.All<UserData>()
+                        .FirstOrDefault(u => (u.UserName == userName));
+
+                if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, password))
+                {
+                    return false;
+                }
+
+                theRealm.Write(() => userInDB.active = true);
+
+                return true;
             }
-
-            theRealm.Write(() => userInDB.active = true);
-
-            return true;
         }
 
 
