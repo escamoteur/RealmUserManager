@@ -41,24 +41,25 @@ namespace RealmUserManager.Model
 
         public bool AddUser(UserData user)
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
             try
             {
-                theRealm.Write(() =>
+                using (var theRealm = Realm.GetInstance(_realmConfiguration))
                 {
-                    user.Id = Guid.NewGuid().ToString();
-                    user.active = false;
+                    theRealm.Write(() =>
+                    {
+                        user.Id = Guid.NewGuid().ToString();
+                        user.active = false;
 
-                    var hashAndSalt = HashHelper.GenerateSaltedSHA1(user.Password);
+                        var hashAndSalt = HashHelper.GenerateSaltedSHA1(user.Password);
 
-                    user.HashedAndSaltedPassword = hashAndSalt.hashedAndSalted;
-                    user.SaltString = hashAndSalt.salt;
+                        user.HashedAndSaltedPassword = hashAndSalt.hashedAndSalted;
+                        user.SaltString = hashAndSalt.salt;
 
-                    theRealm.Add(user);
-                });
-                Log.Information("New user Added: {@user}", user);
-                return true;
-
+                        theRealm.Add(user);
+                    });
+                    Log.Information("New user Added: {@user}", user);
+                    return true;
+                }
             }
             catch (RealmDuplicatePrimaryKeyValueException e)
             {
