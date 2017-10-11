@@ -34,12 +34,13 @@ namespace RealmUserManager.Helpers
 
             var plainTextBytes = Encoding.ASCII.GetBytes(plainTextString);
 
-            var plainTextWithSaltBytes = AppendByteArray(plainTextBytes, Encoding.ASCII.GetBytes(salt));
+            var plainTextWithSaltBytes = AppendByteArray(plainTextBytes, Convert.FromBase64String(salt));
 
             var saltedSHA1Bytes = sha1.ComputeHash(plainTextWithSaltBytes);
 
 
-            return hashedAndSaltedString.Equals(Convert.ToBase64String(saltedSHA1Bytes));
+            var base64String = Convert.ToBase64String(saltedSHA1Bytes);
+            return hashedAndSaltedString.Equals(base64String);
         }
 
 

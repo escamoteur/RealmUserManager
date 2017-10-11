@@ -311,14 +311,16 @@ namespace RealmUserManager.Model
         {
             try
             {
-                var theRealm = Realm.GetInstance(_realmConfiguration);
-
-                var testUser = theRealm.All<UserData>()
-                    .FirstOrDefault(user => user.UserName == "TestUser");
-
-                if (testUser != null)
+                using (var theRealm = Realm.GetInstance(_realmConfiguration))
                 {
-                    theRealm.Write(() => theRealm.Remove(testUser));
+                    var testUser = theRealm.All<UserData>()
+                        .FirstOrDefault(user => user.UserName == "TestUser");
+
+                    if (testUser != null)
+                    {
+                        theRealm.Write(() => theRealm.Remove(testUser));
+                    }
+
                 }
             }
             catch (Exception e)

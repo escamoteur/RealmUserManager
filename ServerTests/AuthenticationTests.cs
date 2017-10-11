@@ -13,7 +13,8 @@ namespace ServerTests
     public class AuthenticationTests : BaseTest
     {
         // Replace with your own serveradress
-        private static string ServerBaseAdress = "http://192.168.178.51:5000/";
+     //   private static string ServerBaseAdress = "http://localhost:5000/";
+       private static string ServerBaseAdress = "http://192.168.178.51:5000/";
 
 
 
@@ -23,7 +24,7 @@ namespace ServerTests
             // We are using Refit to make the REST call
             var restAPI = RestService.For<IRealmUserManagerAPI>(ServerBaseAdress);
 
-            await  restAPI.DeleteTestUser();
+            await restAPI.DeleteTestUser();
         }
 
 
@@ -46,7 +47,7 @@ namespace ServerTests
 
 
             Assert.ThrowsAsync<Refit.ApiException>(
-            
+
                 //act
                 restAPI.NewUser(new UserData()
                 {
@@ -55,8 +56,8 @@ namespace ServerTests
                     Password = "1234",
                     EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
                     Language = "de"
-                })
-            );
+                }),
+                "Conflict", ExceptionMessageCompareOptions.Contains);
 
 
 
@@ -72,8 +73,6 @@ namespace ServerTests
             //prepare
             await restAPI.DeleteTestUser();
 
-            await Task.Delay(1000);
-
             await restAPI.NewUser(new UserData()
             {
                 Email = "thomas@burkharts.net",
@@ -83,6 +82,66 @@ namespace ServerTests
                 Language = "de"
             });
         }
+
+
+        [TestMethod]
+        public async Task LoginFail()
+        {
+
+            // We are using Refit to make the REST call
+            var restAPI = RestService.For<IRealmUserManagerAPI>(ServerBaseAdress);
+
+            //prepare
+            await restAPI.DeleteTestUser();
+
+            await restAPI.NewUser(new UserData()
+            {
+                Email = "thomas@burkharts.net",
+                UserName = "TestUser",
+                Password = "1234",
+                EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
+                Language = "de"
+            });
+
+
+
+            //act
+            Assert.ThrowsAsync<Refit.ApiException>(
+                restAPI.Login("TestUser", "wrong")
+                , "403", ExceptionMessageCompareOptions.Contains);
+
+        }
+
+
+        [TestMethod]
+        public async Task LoginNotActivated()
+        {
+
+            // We are using Refit to make the REST call
+            var restAPI = RestService.For<IRealmUserManagerAPI>(ServerBaseAdress);
+
+            //prepare
+            await restAPI.DeleteTestUser();
+
+            await restAPI.NewUser(new UserData()
+            {
+                Email = "thomas@burkharts.net",
+                UserName = "TestUser",
+                Password = "1234",
+                EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
+                Language = "de"
+            });
+
+
+
+            //act
+            var result = await restAPI.Login("TestUser", "1234");
+
+            Assert.AreEqual(AuthenticationStatus.UserStatus.USER_INACTIVE, result.Status);
+
+        }
+
+
 
     }
 
