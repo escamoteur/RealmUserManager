@@ -3,13 +3,14 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RealmUserManagerDefinitions;
 using Refit;
+using MSTestExtensions;
 
 namespace ServerTests
 {
 
 
     [TestClass]
-    public class AuthenticationTests
+    public class AuthenticationTests : BaseTest
     {
         // Replace with your own serveradress
         private static string ServerBaseAdress = "http://192.168.178.51:5000/";
@@ -27,6 +28,41 @@ namespace ServerTests
 
 
         [TestMethod]
+        public async Task AddUserTwice()
+        {
+
+            // We are using Refit to make the REST call
+            var restAPI = RestService.For<IRealmUserManagerAPI>(ServerBaseAdress);
+            //prepare
+            await restAPI.DeleteTestUser();
+            await restAPI.NewUser(new UserData()
+            {
+                Email = "thomas@burkharts.net",
+                UserName = "TestUser",
+                Password = "1234",
+                EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
+                Language = "de"
+            });
+
+
+            Assert.ThrowsAsync<Refit.ApiException>(
+            
+                //act
+                restAPI.NewUser(new UserData()
+                {
+                    Email = "thomas@burkharts.net",
+                    UserName = "TestUser",
+                    Password = "1234",
+                    EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
+                    Language = "de"
+                })
+            );
+
+
+
+        }
+
+        [TestMethod]
         public async Task AddUser()
         {
 
@@ -36,8 +72,8 @@ namespace ServerTests
             //prepare
             await restAPI.DeleteTestUser();
 
+            await Task.Delay(1000);
 
-            //act
             await restAPI.NewUser(new UserData()
             {
                 Email = "thomas@burkharts.net",

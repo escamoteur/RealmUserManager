@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Jose;
@@ -63,6 +64,10 @@ namespace RealmUserManager.Model
             {
                 Log.Information("Try to add user a second time: {@user}", user);
                 return false;
+            }
+            catch (Exception ex)
+            {
+                Debugger.Break();
             }
         }
 
@@ -303,14 +308,22 @@ namespace RealmUserManager.Model
 
         public void DeleteTestUser()
         {
-            var theRealm = Realm.GetInstance(_realmConfiguration);
-
-            var testUser = theRealm.All<UserData>()
-                .FirstOrDefault(user => user.UserName == "TestUser");
-
-            if (testUser != null)
+            try
             {
-                theRealm.Write(() => theRealm.Remove(testUser));
+                var theRealm = Realm.GetInstance(_realmConfiguration);
+
+                var testUser = theRealm.All<UserData>()
+                    .FirstOrDefault(user => user.UserName == "TestUser");
+
+                if (testUser != null)
+                {
+                    theRealm.Write(() => theRealm.Remove(testUser));
+                }
+            }
+            catch (Exception e)
+            {
+                Debugger.Break();
+                
             }
         }
     }
