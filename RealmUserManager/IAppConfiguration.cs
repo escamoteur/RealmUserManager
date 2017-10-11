@@ -7,5 +7,6 @@ namespace RealmUserManager
         ApplicationSettings AppSettings { get; }
         //Key used to encrypt the JWT Token
         string SecretKey { get; set; }
+        bool DebugMode { get; set; }
     }
 }

@@ -8,6 +8,7 @@ namespace RealmUserManager
         public Smtp Smtp { get; set; }
         public ApplicationSettings AppSettings { get; set; }
         public string SecretKey { get; set; }
+        public bool DebugMode { get; set; }
     }
     
     public class LogLevel

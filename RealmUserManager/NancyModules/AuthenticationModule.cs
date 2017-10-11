@@ -26,8 +26,6 @@ namespace RealmUserManager.NancyModules
             {
                 if (!Request.Query.username.HasValue || (!Request.Query.password.HasValue))
                 {
-                    Log.Logger.Warning("Login with invalid credentials {requestbody}", this.Request.Body.AsString());
-
                     return new Response()
                     {
                         StatusCode = HttpStatusCode.UnprocessableEntity,
@@ -137,11 +135,15 @@ namespace RealmUserManager.NancyModules
 
 
 
-            // activate user by providing login credentials in the request body
+            // activate user by providing login credentials in the request body only possible in debug mode (AppSettings)
             Patch("/auth/user/activate", (parameters) =>
             {
-                var credentials = this.BindAndValidate<UserData>(new BindingConfig() { BodyOnly = true });
-                if (!ModelValidationResult.IsValid)
+                if (!authenticationManager.AppConfig.DebugMode)
+                {
+                    return HttpStatusCode.Forbidden;
+
+                }
+                if (!Request.Query.username.HasValue || (!Request.Query.password.HasValue))
                 {
                     return new Response()
                     {
@@ -151,17 +153,17 @@ namespace RealmUserManager.NancyModules
                 }
 
 
-                if (authenticationManager.ActivateUser(credentials))
+                if (authenticationManager.ActivateUser(Request.Query.username, Request.Query.password))
                 {
 
-                    Log.Logger.Information("User Activated {@user}", credentials);
+                    Log.Logger.Information("User Activated {@user}", Request.Query.username);
 
 
                     return HttpStatusCode.OK;
                 }
 
 
-                Log.Logger.Warning("Activate user with wrong credentials: {@user}", credentials);
+                Log.Logger.Warning("Activate user with wrong credentials: {@user}", Request.Query.username);
 
                 return new Response()
                 {

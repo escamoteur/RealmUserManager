@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RealmUserManagerDefinitions;
 using Refit;
 using MSTestExtensions;
+using Newtonsoft.Json;
 
 namespace ServerTests
 {
@@ -135,12 +136,63 @@ namespace ServerTests
 
 
             //act
-            var result = await restAPI.Login("TestUser", "1234");
+            try
+            {
+                var result = await restAPI.Login("TestUser", "1234");
 
-            Assert.AreEqual(AuthenticationStatus.UserStatus.USER_INACTIVE, result.Status);
+            }
+            catch (ApiException e)
+            {
+               var result =   JsonConvert.DeserializeObject<AuthenticationStatus>(e.Content);
+
+                Assert.AreEqual(AuthenticationStatus.UserStatus.USER_INACTIVE, result.Status);
+            }
+
 
         }
 
+
+        [TestMethod]
+        public async Task LoginActivatedExpired()
+        {
+
+            // We are using Refit to make the REST call
+            var restAPI = RestService.For<IRealmUserManagerAPI>(ServerBaseAdress);
+
+            //prepare
+            await restAPI.DeleteTestUser();
+
+            await restAPI.NewUser(new UserData()
+            {
+                Email = "thomas@burkharts.net",
+                UserName = "TestUser",
+                Password = "1234",
+                EndOfSubscription = new DateTimeOffset(DateTime.Today.AddDays(10)),
+                Language = "de"
+            });
+
+
+            await restAPI.ActivateUser()
+
+            //act
+            try
+            {
+                var result = await restAPI.Login("TestUser", "1234");
+
+            }
+            catch (ApiException e)
+            {
+               var result =   JsonConvert.DeserializeObject<AuthenticationStatus>(e.Content);
+
+                Assert.AreEqual(AuthenticationStatus.UserStatus.USER_INACTIVE, result.Status);
+            }
+
+
+        }
+
+
+
+        
 
 
     }

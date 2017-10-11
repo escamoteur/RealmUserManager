@@ -15,12 +15,12 @@ namespace RealmUserManager.Model
     public class AuthenticationManager
     {
         public RealmConfiguration _realmConfiguration { get; }
-        private readonly IAppConfiguration _config;
+        public  IAppConfiguration AppConfig { get; private set; }
 
-        public AuthenticationManager(IAppConfiguration config, RealmConfiguration realmConfiguration)
+        public AuthenticationManager(IAppConfiguration appConfig, RealmConfiguration realmConfiguration)
         {
             _realmConfiguration = realmConfiguration;
-            _config = config;
+            AppConfig = appConfig;
         }
 
 
@@ -28,12 +28,12 @@ namespace RealmUserManager.Model
         // and if you want to force an update depending on what you set in the config file
         public bool AppUpdateAvailable(string currentAppVersion)
         {
-            return String.Compare(currentAppVersion, _config.AppSettings.LatestAppVersion, StringComparison.Ordinal) < 0;
+            return String.Compare(currentAppVersion, AppConfig.AppSettings.LatestAppVersion, StringComparison.Ordinal) < 0;
         }
 
         public bool AppUpdateMandatory(string currentAppVersion)
         {
-            return String.Compare(currentAppVersion, _config.AppSettings.ForceAppUpdateVersion, StringComparison.Ordinal) < 0;
+            return String.Compare(currentAppVersion, AppConfig.AppSettings.ForceAppUpdateVersion, StringComparison.Ordinal) < 0;
         }
         
 
@@ -109,14 +109,14 @@ namespace RealmUserManager.Model
                 // We return an refresh token even if the user is not activated or the subscription has expired.
                 // In this cases we will not return a new access token (JWT token)
                 //First check if active
-                if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
+                if (!userInDB.active && !AppConfig.AppSettings.IgnoreUserActiveCheck)
                 {
                     authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
                     return authenticationStatus;
                 }
                 
                 //if active user should have a valid subscription
-                if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
+                if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !AppConfig.AppSettings.IgnoreSubscriptionValidCheck)
                 {
                     authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
                     authenticationStatus.EndOfSubscription =userInDB.EndOfSubscription;
@@ -131,7 +131,7 @@ namespace RealmUserManager.Model
                     sub = userInDB.Id, 
                     exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
                 };
-                authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, Encoding.ASCII.GetBytes(_config.SecretKey), JwsAlgorithm.HS256);
+                authenticationStatus.JwtToken = Jose.JWT.Encode(accessToken, Encoding.ASCII.GetBytes(AppConfig.SecretKey), JwsAlgorithm.HS256);
                 authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
 
                 return authenticationStatus;
@@ -156,13 +156,13 @@ namespace RealmUserManager.Model
             }
 
             //First check if active
-            if (!userInDB.active && !_config.AppSettings.IgnoreUserActiveCheck)
+            if (!userInDB.active && !AppConfig.AppSettings.IgnoreUserActiveCheck)
             {
                 authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_INACTIVE;
                 return authenticationStatus;
             }
             //if active user should have a valid subscription
-            if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !_config.AppSettings.IgnoreSubscriptionValidCheck)
+            if (userInDB.EndOfSubscription <= DateTimeOffset.UtcNow && !AppConfig.AppSettings.IgnoreSubscriptionValidCheck)
             {
                 authenticationStatus.Status = AuthenticationStatus.UserStatus.USER_PAYMENT_EXPIRED;
                 authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
@@ -179,7 +179,7 @@ namespace RealmUserManager.Model
                 exp = DateTime.UtcNow.AddMinutes(5).ToBinary()
             };
 
-            authenticationStatus.JwtToken = Jose.JWT.Encode(payLoad, _config.SecretKey, JwsAlgorithm.HS256);
+            authenticationStatus.JwtToken = Jose.JWT.Encode(payLoad, AppConfig.SecretKey, JwsAlgorithm.HS256);
 
             authenticationStatus.EndOfSubscription = userInDB.EndOfSubscription;
             authenticationStatus.RefreshToken = refreshToken; // don't change the refresh token
@@ -208,14 +208,14 @@ namespace RealmUserManager.Model
             };
         }
 
-        public bool ActivateUser(UserData userData)
+        public bool ActivateUser(string userName, string password)
         {
             var theRealm = Realm.GetInstance(_realmConfiguration);
 
             var userInDB = theRealm.All<UserData>()
-                .FirstOrDefault(u => (u.UserName == userData.UserName));
+                .FirstOrDefault(u => (u.UserName == userName));
 
-            if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, userData.Password))
+            if (userInDB == null || !HashHelper.VerifyAgainstSaltedHash(userInDB.HashedAndSaltedPassword, userInDB.SaltString, password))
             {
                 return false;
             }
@@ -263,7 +263,7 @@ namespace RealmUserManager.Model
         {
             var theRealm = Realm.GetInstance(_realmConfiguration);
 
-            var activationManager = new EmailManager("EmailSettings.json", _config);
+            var activationManager = new EmailManager("EmailSettings.json", AppConfig);
 
             var userToActivate = theRealm.All<UserData>()
                             .FirstOrDefault(user => user.UserName == userName);
@@ -288,7 +288,7 @@ namespace RealmUserManager.Model
         {
             var theRealm = Realm.GetInstance(_realmConfiguration);
 
-            var activationManager = new EmailManager("EmailSettings.json",_config);
+            var activationManager = new EmailManager("EmailSettings.json",AppConfig);
 
             var userWithResetRequest = theRealm.All<UserData>()
                 .FirstOrDefault(user => user.UserName == userName);
